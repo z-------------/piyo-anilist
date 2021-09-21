@@ -116,7 +116,7 @@ function getDescription(result: Dictionary): string {
 }
 
 function stripSpoilers(description: string): string {
-    return description.replace(/~!.*!~/g, "").replace(/\n{3,}/g, "\n\n");
+    return description.replace(/~!(.|\n)*?!~/g, "").replace(/\n{3,}/g, "\n\n");
 }
 
 function getImage(result: Dictionary): string {
