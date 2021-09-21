@@ -5,6 +5,13 @@ import { compareTwoStrings } from "string-similarity";
 
 type Dictionary = { [key: string]: any };
 
+enum QueryType {
+    Any,
+    Anime,
+    Manga,
+    Character,
+}
+
 async function al(queryInner: string, variables: { [key: string]: any }): Promise<Dictionary> {
     const query = `
 query ($query: String) {
@@ -33,43 +40,36 @@ query ($query: String) {
 }
 
 async function search(keywords: string): Promise<Dictionary> {
+    const queryType = getQueryType(keywords);
     const queries = [
-        `media(search: $query, sort: POPULARITY_DESC) {
-            id
-            type
-            title {
-                native
-                romaji
-            }
-            description
-            coverImage {
-                large
-            }
-        }`,
-        `characters(search: $query, sort: FAVOURITES_DESC) {
-            id
-            name {
-                native
-                full
-            }
-            age
-            description
-            image {
-                large
-            }
-        }`,
-        // `staff(search: $query, sort: FAVOURITES_DESC) {
-        //     id
-        //     name {
-        //         native
-        //         full
-        //     }
-        //     image {
-        //         large
-        //     }
-        //     description
-        //     favorites
-        // }`,
+        ...([QueryType.Any, QueryType.Anime, QueryType.Manga].includes(queryType) ? [
+            `media(search: $query, ${queryType === QueryType.Anime ? "type: ANIME," : queryType === QueryType.Manga ? "type: MANGA," : ""} sort: POPULARITY_DESC) {
+                id
+                type
+                title {
+                    native
+                    romaji
+                }
+                description
+                coverImage {
+                    large
+                }
+            }`
+        ] : []),
+        ...([QueryType.Any, QueryType.Character].includes(queryType) ? [
+            `characters(search: $query, sort: FAVOURITES_DESC) {
+                id
+                name {
+                    native
+                    full
+                }
+                age
+                description
+                image {
+                    large
+                }
+            }`
+        ] : []),
     ];
     let bestResult: [Dictionary, number] = [null, 0];
     for (const query of queries) {
@@ -85,6 +85,22 @@ async function search(keywords: string): Promise<Dictionary> {
         }
     }
     return bestResult[0];
+}
+
+function getQueryType(keywords: string): QueryType {
+    if (isEnclosedBy(keywords, "{", "}")) {
+        return QueryType.Anime;
+    } else if (isEnclosedBy(keywords, "<", ">")) {
+        return QueryType.Manga;
+    } else if (isEnclosedBy(keywords, "[", "]")) {
+        return QueryType.Character;
+    } else {
+        return QueryType.Any;
+    }
+}
+
+function isEnclosedBy(s: string, start: string, end: string) {
+    return s.startsWith(start) && s.endsWith(end);
 }
 
 function getSimilarity(keyword: string, candidate: string[]): number {
