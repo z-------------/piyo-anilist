@@ -111,8 +111,12 @@ function getDescription(result: Dictionary): string {
     if (result.age) {
         description += `Age: ${result.age}. `;
     }
-    description += result.description;
+    description += stripSpoilers(result.description);
     return description;
+}
+
+function stripSpoilers(description: string): string {
+    return description.replace(/~!.*!~/g, "").replace(/\n{3,}/g, "\n\n");
 }
 
 function getImage(result: Dictionary): string {
