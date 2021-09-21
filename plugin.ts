@@ -12,73 +12,111 @@ enum QueryType {
     Character,
 }
 
-async function al(queryInner: string, variables: { [key: string]: any }): Promise<Dictionary> {
-    const query = `
-query ($query: String) {
-    Page(page: 0, perPage: 1) {
-        ${queryInner}
-    }
+interface Results {
+    anime: Dictionary;
+    manga: Dictionary;
+    characters: Dictionary;
 }
-    `;
+
+async function al(queryInners: string[], variables: Dictionary): Promise<Results> {
+    const query = `query ($search: String) {
+        ${queryInners.join("\n")}
+    }`;
+    console.log("graphql query:", query);
+    console.log({
+        query,
+        variables,
+    });
     const res = await got.post("https://graphql.anilist.co/", {
         json: {
             query,
             variables,
         },
         responseType: "json",
+        headers: {
+            "User-Agent": "piyo-anilist/0.0.0",
+        },
     });
     const body: Dictionary = res.body;
-    console.log(body);
-    const pageObj = body["data"]["Page"];
-    const key = Object.keys(pageObj)[0]; // "media", "characters", etc.
-    const obj = pageObj[key][0];
-    if (!obj) {
-        return null;
-    }
-    obj["_kind"] = key;
-    return obj;
+    console.log("body:", body);
+    const data = body["data"];
+    return {
+        anime: data.anime.results.length ? Object.assign(data.anime.results[0], { _kind: "anime" }) : null,
+        manga: data.manga.results.length ? Object.assign(data.manga.results[0], { _kind: "manga" }) : null,
+        characters: data.characters.results.length ? Object.assign(data.characters.results[0], { _kind: "character" }) : null,
+    };
 }
 
-async function search(keywords: string): Promise<Dictionary> {
-    const queryType = getQueryType(keywords);
-    const queries = [
-        ...([QueryType.Any, QueryType.Anime, QueryType.Manga].includes(queryType) ? [
-            `media(search: $query, ${queryType === QueryType.Anime ? "type: ANIME," : queryType === QueryType.Manga ? "type: MANGA," : ""} sort: POPULARITY_DESC) {
-                id
-                type
-                title {
-                    native
-                    romaji
+async function search(search: string): Promise<Dictionary> {
+    const queryType = getQueryType(search);
+    let processedSearch = queryType === QueryType.Any ? search : search.slice(1, -1);
+
+    const queryInners = [];
+    if ([QueryType.Any, QueryType.Anime].includes(queryType)) {
+        queryInners.push(`
+            anime: Page(perPage: 1) {
+                results: media(type: ANIME, search: $search) {
+                    id
+                    type
+                    title {
+                        native
+                        romaji
+                    }
+                    description
+                    coverImage {
+                        large
+                    }
                 }
-                description
-                coverImage {
-                    large
+            }
+        `);
+    }
+    if ([QueryType.Any, QueryType.Manga].includes(queryType)) {
+        queryInners.push(`
+            manga: Page(perPage: 1) {
+                results: media(type: MANGA, search: $search) {
+                    id
+                    type
+                    title {
+                        native
+                        romaji
+                    }
+                    description
+                    coverImage {
+                        large
+                    }
                 }
-            }`
-        ] : []),
-        ...([QueryType.Any, QueryType.Character].includes(queryType) ? [
-            `characters(search: $query, sort: FAVOURITES_DESC) {
-                id
-                name {
-                    native
-                    full
+            }
+        `);
+    }
+    if ([QueryType.Any, QueryType.Character].includes(queryType)) {
+        queryInners.push(`
+            characters: Page(perPage: 1) {
+                results: characters(search: $search) {
+                    id
+                    name {
+                        native
+                        full
+                    }
+                    age
+                    description
+                    image {
+                        large
+                    }
                 }
-                age
-                description
-                image {
-                    large
-                }
-            }`
-        ] : []),
-    ];
+            }
+        `);
+    }
+
     let bestResult: [Dictionary, number] = [null, 0];
-    for (const query of queries) {
-        const result = await al(query, { query: keywords });
+    const results = await al(queryInners, { search: processedSearch });
+    console.log({ results });
+    for (const key in results) {
+        console.log({ key });
+        const result = results[key];
         if (!result) {
             continue;
         }
-        const names = getNames(result);
-        const similarity = getSimilarity(keywords, names);
+        const similarity = getSimilarity(search, getNames(result));
         if (similarity > bestResult[1]) {
             bestResult[0] = result;
             bestResult[1] = similarity;
@@ -115,11 +153,7 @@ function getNames(result: Dictionary): string[] {
 }
 
 function getUrl(result: Dictionary): string {
-    const kind =
-        result._kind === "media" ? result.type.toLowerCase()
-        : result._kind[result._kind.length - 1] === "s" ? result._kind.slice(0, -1)
-        : result._kind;
-    return `https://anilist.co/${kind}/${result.id}`;
+    return `https://anilist.co/${result._kind}/${result.id}`;
 }
 
 function getDescription(result: Dictionary): string {
