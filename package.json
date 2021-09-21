@@ -1,0 +1,18 @@
+{
+    "main": "dist/plugin.js",
+    "devDependencies": {
+        "@types/string-similarity": "^4.0.0",
+        "discord.js": "^13.1.0",
+        "got": "^11.8.2",
+        "piyo": "github:z-------------/piyo",
+        "typescript": "^4.4.3"
+    },
+    "peerDependencies": {
+        "discord.js": "^13.1.0",
+        "got": "^11.8.2",
+        "piyo": "github:z-------------/piyo"
+    },
+    "dependencies": {
+        "string-similarity": "^4.0.4"
+    }
+}
