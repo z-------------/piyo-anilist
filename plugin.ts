@@ -94,11 +94,8 @@ function getSimilarity(keyword: string, candidate: string[]): number {
 }
 
 function getNames(result: Dictionary): string[] {
-    const key =
-        result.hasOwnProperty("title") ? "title"
-        : result.hasOwnProperty("name") ? "name"
-        : "";
-    return Object.values(result[key]);
+    const obj = result.title ?? result.name;
+    return Object.values(obj);
 }
 
 function getUrl(result: Dictionary): string {
